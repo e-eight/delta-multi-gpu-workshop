@@ -1,4 +1,4 @@
-# Image classification
+# Data parallelism demonstration with image classification
 
 - Data: CIFAR-10
 - Model: ResNet-18
