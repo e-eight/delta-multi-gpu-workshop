@@ -8,15 +8,16 @@
 #SBATCH --gpus=2              
 #SBATCH --cpus-per-task=8               
 #SBATCH --time=00:30:00
-#SBATCH --account=xxxx-delta-gpu        # ← REPLACE with your Delta project
+#SBATCH --account=bccu-delta-gpu        # ← REPLACE with your Delta project
 #SBATCH --constraint=scratch
 #SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=xxxxx@xxxxxxx.xxx  # <- change this
+#SBATCH --mail-user=soham@illinois.edu  # <- change this
 
 
 export LOGLEVEL=INFO
 
-mkdir -p outputs logs checkpoints
+ROOT="$(dirname $PWD)"
+mkdir -p outputs $ROOT/src/logs $ROOT/src/checkpoints
 
 module load pytorch-conda
 export NCCL_DEBUG=INFO
@@ -35,11 +36,14 @@ echo "=========================================="
 
 conda activate base
 
-ROOT="$(dirname $PWD)"
-time srun fabric run $ROOT/src/cifar10_fabric.py \
+time srun fabric run \
      --accelerator="gpu" \
      --devices=$SLURM_NTASKS_PER_NODE \
-     --precision="bf16-mixed"
+     --precision="bf16-mixed" \
+     $ROOT/src/cifar10_fabric.py \
+     --checkpoint-dir "$ROOT/src/checkpoints" \
+     --log-dir "$ROOT/src/logs" \
+     --data-dir "$ROOT/src/data"
 
 echo "=========================================="
 echo "Job finished: $(date)"

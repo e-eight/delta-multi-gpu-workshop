@@ -16,6 +16,13 @@ from torchvision.transforms import v2
 def parse_args():
     parser = argparse.ArgumentParser(description="Image Classification with DDP")
     parser.add_argument(
+        "--data-dir",
+        type=str,
+        default="data",
+        metavar="DIR",
+        help="Directory to download the data to",
+    )
+    parser.add_argument(
         "--log-dir",
         type=str,
         default="logs",
@@ -42,16 +49,19 @@ def parse_args():
 def setup():
     torch.accelerator.set_device_index(int(os.environ["LOCAL_RANK"]))
     acc = torch.accelerator.current_accelerator()
-    backend = dist.get_default_backend_for_device(acc)
+    backend = dist.get_default_backend_for_device(acc)  # nccl for nvidia gpus
     dist.init_process_group(backend)
-    return dist.get_rank(), dist.get_world_size()
+    return (
+        dist.get_rank(),
+        dist.get_world_size(),
+    )  # rank -> index, world_size -> total number of GPUs
 
 
 def cleanup():
     dist.destroy_process_group()
 
 
-def get_dataloaders(rank, world_size):
+def get_dataloaders(rank, world_size, data_dir):
     train_transform = v2.Compose(
         [
             v2.ToImage(),
@@ -68,10 +78,10 @@ def get_dataloaders(rank, world_size):
     )
 
     train_dataset = datasets.CIFAR10(
-        root="./data", train=True, download=True, transform=train_transform
+        root=data_dir, train=True, download=True, transform=train_transform
     )
     valid_dataset = datasets.CIFAR10(
-        root="./data", train=False, download=False, transform=valid_transform
+        root=data_dir, train=False, download=False, transform=valid_transform
     )
 
     train_sampler = DistributedSampler(
@@ -85,7 +95,7 @@ def get_dataloaders(rank, world_size):
         train_dataset,
         batch_size=64,
         sampler=train_sampler,
-        num_workers=2,
+        num_workers=2,  # Number of CPUs
         pin_memory=True,
     )
     valid_loader = DataLoader(
@@ -188,7 +198,9 @@ def main():
     args = parse_args()
     rank, world_size = setup()
 
-    train_loader, valid_loader, train_sampler = get_dataloaders(rank, world_size)
+    train_loader, valid_loader, train_sampler = get_dataloaders(
+        rank, world_size, args.data_dir
+    )
 
     device_id = rank % torch.accelerator.device_count()
     model = get_model().to(device_id)

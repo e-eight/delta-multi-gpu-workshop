@@ -8,10 +8,10 @@
 #SBATCH --gpus-per-node=2              
 #SBATCH --cpus-per-task=8               
 #SBATCH --time=00:30:00
-#SBATCH --account=xxxx-delta-gpu        # ← REPLACE with your Delta project
+#SBATCH --account=bccu-delta-gpu        # ← REPLACE with your Delta project
 #SBATCH --constraint=scratch
 #SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=xxxxx@xxxxxxxx.xxx  # <- change this
+#SBATCH --mail-user=soham@illinois.edu  # <- change this
 
 
 nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )
@@ -21,13 +21,14 @@ head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)
 echo "Head node: $head_node"
 echo "Head node IP: $head_node_ip"
 
-# export LOGLEVEL=INFO
+export LOGLEVEL=INFO
 
-mkdir -p outputs logs checkpoints
+ROOT="$(dirname $PWD)" 
+mkdir -p outputs $ROOT/src/logs $ROOT/src/checkpoints
 
 module load pytorch-conda
-# export NCCL_DEBUG=INFO
-export NCCL_SOCKET_IFNAME=hsn
+export NCCL_DEBUG=INFO
+export NCCL_SOCKET_IFNAME=hsn # particular to Delta
 module load aws-ofi-nccl # loads the nccl built with the AWS nccl plugin for Slingshot11
 
 # Print job info
@@ -42,16 +43,16 @@ echo "=========================================="
 
 conda activate base
 
-ROOT="$(dirname $PWD)"
-time srun torchrun \
+srun torchrun \
      --nnodes=$SLURM_NNODES \
      --nproc_per_node=$SLURM_GPUS_PER_NODE \
      --rdzv_id=$RANDOM \
      --rdzv_backend=c10d \
      --rdzv_endpoint="$head_node_ip:29500" \
      $ROOT/src/cifar10_ddp.py \
-     --checkpoint-dir "checkpoints" \
-     --log-dir "logs"
+     --checkpoint-dir "$ROOT/src/checkpoints" \
+     --log-dir "$ROOT/src/logs" \
+     --data-dir "$ROOT/src/data"
      
 echo "=========================================="
 echo "Job finished: $(date)"

@@ -17,6 +17,13 @@ from wandb.integration.lightning.fabric import WandbLogger
 def parse_args():
     parser = argparse.ArgumentParser(description="Image Classification with DDP")
     parser.add_argument(
+        "--data-dir",
+        type=str,
+        default="data",
+        metavar="DIR",
+        help="Directory to download the data to",
+    )
+    parser.add_argument(
         "--log-dir",
         type=str,
         default="logs",
@@ -46,7 +53,8 @@ def parse_args():
     )
     return parser.parse_args()
 
-def get_loaders(fabric):
+
+def get_loaders(fabric, data_dir):
     cifar10_normalization = v2.Normalize(
         mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
         std=[x / 255.0 for x in [63.0, 62.1, 66.7]],
@@ -70,13 +78,13 @@ def get_loaders(fabric):
 
     with fabric.rank_zero_first(local=False):
         train_dataset = datasets.CIFAR10(
-            root="./data",
+            root=data_dir,
             train=True,
             download=fabric.is_global_zero,
             transform=train_transform,
         )
         valid_dataset = datasets.CIFAR10(
-            root="./data",
+            root=data_dir,
             train=False,
             download=fabric.is_global_zero,
             transform=valid_transform,
@@ -139,7 +147,7 @@ def main():
     fabric = Fabric(loggers=[tb_logger, wb_logger])
     seed_everything(42)
 
-    train_loader, valid_loader = get_loaders(fabric)
+    train_loader, valid_loader = get_loaders(fabric, args.data_dir)
     model, optimizer = get_model_and_optimizer(fabric)
     loss_fn = nn.CrossEntropyLoss()
 
@@ -174,7 +182,7 @@ def main():
         }
         fabric.log_dict(metrics, epoch)
 
-        if epoch % args.save_checkout_interval == 0:
+        if epoch % args.save_checkpoint_interval == 0:
             state = {"model": model, "optimizer": optimizer, "epoch": epoch}
             fabric.save(os.path.join("checkpoints", f"checkpoint_{epoch}.ckpt"), state)
 

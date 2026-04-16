@@ -54,7 +54,7 @@ def evaluate(model, loader, loss_fn, device):
     total = 0
     model.eval()
     with torch.no_grad():
-        for inputs, targets in valid_loader:
+        for inputs, targets in loader:
             inputs = inputs.to(device)
             targets = targets.to(device)
             outputs = model(inputs)
